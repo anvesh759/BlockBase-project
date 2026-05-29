@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decentralised Fundraiser</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #ddd;
+               max-width: 680px; margin: 0 auto; padding: 2rem 1rem; }
+        h1   { font-size: 1.4rem; margin-bottom: 0.2rem; }
+        .desc-text { color: #777; font-size: 0.9rem; margin: 0.2rem 0 2rem; }
+        .card    { background: #161616; border: 1px solid #2a2a2a;
+                   border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+        h2       { font-size: 1rem; margin-top: 0; }
+        button   { border: 0; border-radius: 8px; padding: 0.75rem 1rem;
+                   font-weight: 600; cursor: pointer; margin-top: 0.6rem; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        input    { width: 100%; background: #0f0f0f; color: #eee;
+                   border: 1px solid #333; border-radius: 8px;
+                   padding: 0.75rem; margin-top: 0.4rem; }
+        .btn-connect  { background: #2563eb; color: white; }
+        .btn-donate   { background: #059669; color: white; }
+        .btn-refund   { background: #b45309; color: white; }
+        .btn-withdraw { background: #7c3aed; color: white; }
+        .bar-wrap  { background: #222; border-radius: 6px; height: 12px;
+                     margin: 0.75rem 0 0.4rem; overflow: hidden; }
+        .bar       { background: linear-gradient(to right, #059669, #34d399);
+                     height: 12px; transition: width 0.6s ease; }
+        .bar-label { display: flex; justify-content: space-between;
+                     font-size: 0.78rem; color: #555; margin-bottom: 0.5rem; }
+        .stats     { display: grid; grid-template-columns: repeat(3,1fr);
+                     gap: 0.75rem; margin: 1rem 0; }
+        .stat      { background: #111; border: 1px solid #222;
+                     border-radius: 8px; padding: 0.85rem; text-align: center; }
+        .stat-val  { font-size: 1.1rem; font-weight: 600; color: #eee; }
+        .stat-lbl  { font-size: 0.72rem; color: #555; margin-top: 0.2rem; }
+        .badge-active { color: #4ade80; font-size: 0.75rem; font-weight: 600;
+                        background: #052e16; padding: 2px 8px; border-radius: 4px; }
+        .badge-ended  { color: #f87171; font-size: 0.75rem; font-weight: 600;
+                        background: #2d0b0b; padding: 2px 8px; border-radius: 4px; }
+        #status    { font-size: 0.82rem; color: #888; margin-top: 0.75rem;
+                     min-height: 1.2em; }
+        #status.err { color: #f87171; }
+        #status.ok  { color: #4ade80; }
+        .addr      { font-size: 0.75rem; font-family: monospace; color: #555;
+                     word-break: break-all; }
+        .event-row { font-size: 0.78rem; color: #666; padding: 0.4rem 0;
+                     border-bottom: 1px solid #1a1a1a; }
+        .event-row:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <h1 id="campaignTitle">Loading...</h1>
+    <p class="desc-text" id="campaignDesc"></p>
+
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h2 style="margin:0">Progress</h2>
+            <span id="statusBadge">&mdash;</span>
+        </div>
+        <div class="bar-wrap">
+            <div class="bar" id="progressBar" style="width:0%"></div>
+        </div>
+        <div class="bar-label">
+            <span>Raised: <strong id="raised">&mdash;</strong></span>
+            <span>Goal: <strong id="goal">&mdash;</strong></span>
+        </div>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-val" id="donorCount">&mdash;</div>
+                <div class="stat-lbl">Funded</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val" id="timeLeft">&mdash;</div>
+                <div class="stat-lbl">Time Left</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val" id="myDonation">&mdash;</div>
+                <div class="stat-lbl">My Donation</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Wallet</h2>
+        <button class="btn-connect" id="connectBtn" onclick="connectWallet()">
+            Connect MetaMask
+        </button>
+        <p class="addr" id="walletAddr">Not connected</p>
+    </div>
+
+    <div class="card" id="actionCard" style="display:none">
+        <h2>Actions</h2>
+        <div id="donateSection">
+            <input type="number" id="donateAmount"
+                   placeholder="Amount in ETH (e.g. 0.005)" step="0.001" min="0" />
+            <button class="btn-donate" onclick="donateFunds()">Donate ETH</button>
+        </div>
+        <div id="refundSection" style="display:none">
+            <button class="btn-refund" onclick="claimRefund()">Claim Refund</button>
+        </div>
+        <div id="withdrawSection" style="display:none">
+            <button class="btn-withdraw" onclick="withdrawFunds()">
+                Withdraw Funds (Owner)
+            </button>
+        </div>
+        <p id="status"></p>
+    </div>
+
+    <div class="card">
+        <h2>Recent Donations</h2>
+        <div id="eventLog">
+            <p style="color:#555;font-size:0.85rem">Connect wallet to load.</p>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script>
+        // Put your Sepolia contract address here after deploying in Remix.
+        const CONTRACT_ADDRESS = "0x0A866dc7E09093a27B19478A80636B68fFC771A0";
+
+        const ABI = [
+            "function title() view returns (string)",
+            "function description() view returns (string)",
+            "function goal() view returns (uint256)",
+            "function deadline() view returns (uint256)",
+            "function totalRaised() view returns (uint256)",
+            "function withdrawn() view returns (bool)",
+            "function owner() view returns (address)",
+            "function donations(address) view returns (uint256)",
+            "function getStatus() view returns (bool isActive, bool goalReached, uint256 remaining, uint256 timeLeft)",
+            "function donate() payable",
+            "function withdraw()",
+            "function refund()",
+            "event Donated(address indexed donor, uint256 amount, uint256 newTotal)",
+            "event FundsWithdrawn(address indexed owner, uint256 amount)",
+            "event Refunded(address indexed donor, uint256 amount)"
+        ];
+
+        let provider, signer, contract, userAddress;
+
+        window.addEventListener("load", async () => {
+            if (!window.ethereum) return;
+            if (CONTRACT_ADDRESS === "0xYOUR_FUNDRAISER_CONTRACT_ADDRESS") return;
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+            await loadPublicData();
+        });
+
+        async function connectWallet() {
+            if (!window.ethereum) { setStatus("MetaMask not found.", "err"); return; }
+            if (CONTRACT_ADDRESS === "0xYOUR_FUNDRAISER_CONTRACT_ADDRESS") {
+                setStatus("Add your deployed contract address first.", "err"); return;
+            }
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const network = await provider.getNetwork();
+            if (network.chainId !== 11155111) {
+                setStatus("Switch MetaMask to Sepolia.", "err"); return;
+            }
+            signer      = provider.getSigner();
+            userAddress = await signer.getAddress();
+            contract    = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+            document.getElementById("connectBtn").textContent = "Connected";
+            document.getElementById("connectBtn").disabled    = true;
+            document.getElementById("walletAddr").textContent = userAddress;
+            document.getElementById("actionCard").style.display = "block";
+
+            await loadAllData();
+            contract.on("Donated", async () => await loadAllData());
+            contract.on("Refunded", async () => await loadAllData());
+            contract.on("FundsWithdrawn", async () => await loadAllData());
+        }
+
+        async function loadPublicData() {
+            const [title, desc, goal, raised, status] =
+                await Promise.all([
+                    contract.title(),
+                    contract.description(),
+                    contract.goal(),
+                    contract.totalRaised(),
+                    contract.getStatus()
+                ]);
+
+            document.getElementById("campaignTitle").textContent = title;
+            document.getElementById("campaignDesc").textContent  = desc;
+            document.getElementById("goal").textContent =
+                ethers.utils.formatEther(goal) + " ETH";
+            document.getElementById("raised").textContent =
+                ethers.utils.formatEther(raised) + " ETH";
+
+            const pct = goal.gt(0)
+                ? Math.min(raised.mul(100).div(goal).toNumber(), 100) : 0;
+            document.getElementById("donorCount").textContent = pct + "%";
+            document.getElementById("progressBar").style.width = pct + "%";
+
+            const tl = status.timeLeft.toNumber();
+            document.getElementById("timeLeft").textContent =
+                tl === 0 ? "Ended" : formatDuration(tl);
+
+            const badge = document.getElementById("statusBadge");
+            badge.className   = status.isActive ? "badge-active" : "badge-ended";
+            badge.textContent = status.isActive ? "Active" : "Ended";
+
+            await loadEventLog();
+        }
+
+        async function loadAllData() {
+            await loadPublicData();
+            const [ownerAddr, myDon, status, alreadyWithdrawn] = await Promise.all([
+                contract.owner(),
+                contract.donations(userAddress),
+                contract.getStatus(),
+                contract.withdrawn()
+            ]);
+
+            document.getElementById("myDonation").textContent =
+                ethers.utils.formatEther(myDon) + " ETH";
+
+            document.getElementById("donateSection").style.display =
+                status.isActive ? "block" : "none";
+            document.getElementById("refundSection").style.display =
+                (!status.isActive && !status.goalReached && myDon.gt(0))
+                    ? "block" : "none";
+            document.getElementById("withdrawSection").style.display =
+                (status.goalReached && !alreadyWithdrawn &&
+                 ownerAddr.toLowerCase() === userAddress.toLowerCase())
+                    ? "block" : "none";
+        }
+
+        async function loadEventLog() {
+            const events = await contract.queryFilter(
+                contract.filters.Donated()
+            );
+            const log = document.getElementById("eventLog");
+            if (events.length === 0) {
+                log.innerHTML =
+                    "<p style='color:#555;font-size:0.85rem'>No donations yet.</p>";
+                return;
+            }
+            log.innerHTML = events.slice(-10).reverse().map(e => {
+                const addr   = e.args.donor.slice(0,6) + "..." +
+                               e.args.donor.slice(-4);
+                const amount = ethers.utils.formatEther(e.args.amount);
+                return `<div class="event-row">${addr} donated ${amount} ETH</div>`;
+            }).join("");
+        }
+
+        async function donateFunds() {
+            const amtStr = document.getElementById("donateAmount").value;
+            if (!amtStr || +amtStr <= 0) {
+                setStatus("Enter a valid ETH amount.", "err"); return;
+            }
+            try {
+                setStatus("Sending donation...", "");
+                const tx = await contract.donate({ value: ethers.utils.parseEther(amtStr) });
+                await tx.wait();
+                document.getElementById("donateAmount").value = "";
+                setStatus("Donation sent. Thank you!", "ok");
+                await loadAllData();
+            } catch (err) { setStatus(err.reason || err.message, "err"); }
+        }
+
+        async function claimRefund() {
+            try {
+                setStatus("Sending refund transaction...", "");
+                const tx = await contract.refund();
+                await tx.wait();
+                setStatus("Refund claimed.", "ok");
+                await loadAllData();
+            } catch (err) { setStatus(err.reason || err.message, "err"); }
+        }
+
+        async function withdrawFunds() {
+            try {
+                setStatus("Sending withdraw transaction...", "");
+                const tx = await contract.withdraw();
+                await tx.wait();
+                setStatus("Funds withdrawn.", "ok");
+                await loadAllData();
+            } catch (err) { setStatus(err.reason || err.message, "err"); }
+        }
+
+        function formatDuration(s) {
+            if (s < 60)    return s + "s";
+            if (s < 3600)  return Math.floor(s / 60) + "m";
+            if (s < 86400) return Math.floor(s / 3600) + "h";
+            return Math.floor(s / 86400) + "d";
+        }
+
+        function setStatus(msg, type) {
+            const el = document.getElementById("status");
+            el.textContent = msg;
+            el.className   = type;
+        }
+    </script>
+</body>
+</html>
